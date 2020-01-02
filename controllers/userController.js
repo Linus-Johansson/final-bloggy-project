@@ -1,5 +1,37 @@
 const User = require("../models/User");
 const PostModel = require("../models/PostModel");
+const FollowModel = require("../models/FollowModel");
+
+
+exports.sharedProfileData = async (req, res, next) =>{
+    let isVisitorsProfile = false;
+    let isFollowing = false;
+    if(req.session.user){// if current user is logged in
+        // // gets the current MongoDB Object ID-Object for the current profile user
+        isVisitorsProfile = req.profileUser._id.equals(req.session.user._id); //MongoDB Object ID-Object gets checked against the current session user id.
+        isFollowing = await FollowModel.isVisitorFollowing(req.profileUser._id, req.visitorID);// we check if user is currently following the profile. 
+    }
+    req.isVisitorsProfile = isVisitorsProfile;
+    req.isFollowing = isFollowing;// the result is stored on the request object.
+    
+    
+    //TODO: retrive post, following, and follower count data
+    let postCountPromise = PostModel.countPostsByAuthor(req.profileUser._id);
+    let followerCountPromise = FollowModel.countFollowersById(req.profileUser._id);
+    let followingCountPromise = FollowModel.countFollowingById(req.profileUser._id);
+    let [postCount, followerCount, followingCount] = await Promise.all([postCountPromise, followerCountPromise, followingCountPromise]);
+    
+    req.postCount = postCount;
+    req.followerCount = followerCount;
+    req.followingCount = followingCount;
+
+    next();// so we can use it wihin the next function for this route.
+
+       
+}
+
+
+
 exports.mustBeLoggedIn = (req, res, next)=>{
     if(req.session.user){// there's only ever gonna be a userobject within the sessiondata if a user is sucsuessfylly logged in.
         next();// call the next function in this route
@@ -69,10 +101,12 @@ exports.register = (req, res)=>{
 
 exports.dashBoard = ()=>{}
 
-exports.home = (req, res)=>{
+exports.home = async (req, res)=>{
     
     if(req.session.user){
-        res.render("home-dashboard");// render ejs template with data that we want passed into this template.
+        // fetch feed of posts for current user¨
+        let posts = await PostModel.getFeed(req.session.user._id)
+        res.render("home-dashboard", {posts: posts});// render ejs template with data that we want passed into this template.
     }else{
         res.render("home-guest",{regErrors:req.flash("regErrors")});
     }
@@ -82,24 +116,93 @@ exports.ifUserExsists = (req, res, next)=>{
   
     User.findByUserName(req.params.username).then((userDocument)=>{
     req.profileUser = userDocument;// a new property on the request ojbect gets set to the userdocument from the DB.
+ 
     next();// lets the caller know to run the next function called.
   }).catch(()=>{
     res.render("404");
   })
-}
+}/*
+//TODO delete Soon
+exports.sharedProfileData = async (req, res, next) =>{
+    let isVisitorsProfile = false;
+    let isFollowing = false;
+    if(req.session.user){// if current user is logged in
+        // // gets the current MongoDB Object ID-Object for the current profile user
+        isVisitorsProfile = req.profileUser._id.equals(req.session.user._id); //MongoDB Object ID-Object gets checked against the current session user id.
+        isFollowing = await FollowModel.isVisitorFollowing(req.profileUser._id, req.visitorID);// we check if user is currently following the profile. 
+    }
+    req.isVisitorsProfile = isVisitorsProfile;
+    req.isFollowing = isFollowing;// the result is stored on the request object.
+    next();// so we can use it wihin the next function for this route.
+}*/
 
-exports.profilePostScreen =(req, res)=>{
+exports.profilePostScreen = (req, res)=>{
     
     // ask our postModel for a certain author id.
     PostModel.findByAuthorId(req.profileUser._id).then((posts)=>{
     // here we want to render our template with the promise's post data.
     res.render("profile", {
-        posts: posts,
+        currentPage: "posts",
+        posts: posts,   
         profileUserName: req.profileUser.username,
-        profileAvatar: req.profileUser.avatar
+        profileAvatar: req.profileUser.avatar,
+        isFollowing: req.isFollowing,
+        isVisitorsProfile: req.isVisitorsProfile,
+        counts: {
+            postCount: req.postCount,
+            followerCount: req.followerCount,
+            followingCount: req.followingCount
+        }
     });
     }).catch(()=>{
     // if this run, the problem relates to an unforseen or technical issue
     res.render("404");
     })
 }
+
+exports.profileFollowersScreen = async (req, res)=>{
+    try {
+        
+        let followers = await FollowModel.getFollowersById(req.profileUser._id);// populated with users & avatars.
+        res.render("profile-followers",{
+        currentPage: "followers",
+        followers: followers,// followersList passed into  the template profile-followers.
+        profileUserName: req.profileUser.username,
+        profileAvatar: req.profileUser.avatar,
+        isFollowing: req.isFollowing,
+        isVisitorsProfile: req.isVisitorsProfile,
+        counts: {
+            postCount: req.postCount,
+            followerCount: req.followerCount,
+            followingCount: req.followingCount
+        }
+    });
+    } catch (error) {
+        
+    }
+}
+
+exports.profileFollowingScreen = async(req, res) => {
+    try {
+        
+        let following = await FollowModel.getFollowingById(req.profileUser._id);// populated with users & avatars.
+        res.render("profile-following",{
+        currentPage: "following",
+        following: following,// followingList passed into the template profile-following.
+        profileUserName: req.profileUser.username,
+        profileAvatar: req.profileUser.avatar,
+        isFollowing: req.isFollowing,
+        isVisitorsProfile: req.isVisitorsProfile,
+        counts: {
+            postCount: req.postCount,
+            followerCount: req.followerCount,
+            followingCount: req.followingCount
+        }
+    });
+    } catch (error) {
+        
+    }
+}
+
+
+

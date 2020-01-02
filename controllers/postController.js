@@ -95,3 +95,11 @@ exports.delete = (req, res)=>{
         
     })
 }
+
+exports.search = (req, res) =>{
+    Post.search(req.body.searchTerm).then((posts) => {// if successfull send back json data to the browser. it resolves with the posts related to the searchterm
+        res.json(posts);
+    }).catch(()=>{
+        res.json([]);
+    })
+}

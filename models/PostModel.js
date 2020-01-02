@@ -1,5 +1,6 @@
 // this file is a reuseable file that pulls in our Database by exporting the mongoDB client.
 const postCollections = require("../db").db().collection("posts");// represents mongoDB post collection
+const followsCollection = require("../db").db().collection("follows");
 const User = require("./User");
 const objectId = require("mongodb").ObjectID;
 const sanitizeHTML = require("sanitize-html");
@@ -87,6 +88,7 @@ class Post{
             posts = posts.map((post)=>{
 
                 post.isVisitorOwner = post.authorId.equals(visitorID);
+                post.authorId = undefined;
 
                 post.author = {
                     username: post.author.username,
@@ -177,6 +179,39 @@ class Post{
 
 
         })
+    }
+     // if searchterm is not a string or if a weird request is sent without a searchterm at all, then searchterm would be undefined
+    static search(searchTerm){
+        return new Promise(async (resolve, reject)=>{
+            if(typeof(searchTerm) == "string"){
+                let posts = await Post.reuseablePostQuery([
+                    {$match: {$text: {$search: searchTerm}}},
+                    {$sort: {score: {$meta: "textScore"}}}
+                ]);
+                resolve(posts);
+            }else{
+                reject();
+            }
+        })
+    }
+
+    static countPostsByAuthor(id){
+        return new Promise(async (resolve, reject)=>{
+            let postCount = await postCollections.countDocuments({author: id})// tells MongoDB which documents it should look for and count.
+            resolve(postCount);
+        });
+    }
+    static async getFeed(id){
+        // create an array of the user id's that the current user follows.
+        let followedUsers = await followsCollection.find({authorID: new objectId(id)}).toArray();
+        followedUsers = followedUsers.map((followDoc)=>{
+            return followDoc.followedID
+        })
+        // look for posts where the author is in the above array of followed users
+        return Post.reuseablePostQuery([
+            {$match: {author: {$in: followedUsers}}},// find any post document, where the author-value is a value that is in the followedUsers array.
+            {$sort: {createdDate: -1}}// sorted so that the newest post is at the top.
+        ]); 
     }
 }
 
