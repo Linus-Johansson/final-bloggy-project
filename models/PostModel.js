@@ -207,7 +207,7 @@ class Post{
         followedUsers = followedUsers.map((followDoc)=>{
             return followDoc.followedID
         })
-        // look for posts where the author is in the above array of followed users
+        // look for posts where the author is in the above array of followed users.
         return Post.reuseablePostQuery([
             {$match: {author: {$in: followedUsers}}},// find any post document, where the author-value is a value that is in the followedUsers array.
             {$sort: {createdDate: -1}}// sorted so that the newest post is at the top.
