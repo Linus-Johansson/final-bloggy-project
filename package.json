@@ -18,7 +18,7 @@
     "bcryptjs": "^2.4.3",
     "connect-flash": "^0.1.1",
     "connect-mongo": "^3.1.2",
-    "dompurify": "^2.0.7",
+    "dompurify": "^2.0.17",
     "dotenv": "^8.2.0",
     "ejs": "^2.7.1",
     "express": "^4.17.1",
